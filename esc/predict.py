@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from esc.utils.definitions_tokenizer import get_tokenizer
 from esc.utils.wordnet import synset_from_offset
 from esc.utils.wsd import WSDInstance
-from esc.esc_dataset import WordNetDataset, OxfordDictionaryDataset
+from esc.esc_dataset import WordNetDataset, OxfordDictionaryDataset, WiktionaryDataset
 from esc.esc_pl_module import ESCModule
 from esc.utils.commons import list_elems_in_dir
 
@@ -433,6 +433,13 @@ def main() -> None:
                     args.tokens_per_batch,
                     re_init_on_iter=False,
                     is_test=True,
+                )
+            elif args.wiktionary:
+                dataset = WiktionaryDataset(
+                    dataset_path,
+                    tokenizer,
+                    args.tokens_per_batch,
+                    re_init_on_iter=False,
                 )
             else:
                 dataset = WordNetDataset(

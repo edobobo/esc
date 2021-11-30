@@ -475,14 +475,85 @@ class OxfordDictionaryDataset(QAExtractiveDataset):
 class WiktionaryDataset(QAExtractiveDataset):
     def __init__(
         self,
+        dataset_path: str,
         tokenizer: DefinitionsTokenizer,
         tokens_per_batch: int,
         re_init_on_iter: bool,
     ):
         super().__init__(tokenizer, tokens_per_batch, re_init_on_iter)
+        self.dataset_path = dataset_path
+        self.lemmapos2senses = collections.defaultdict(set)
+        self.sense2definition = dict()
+        self.__init_kb()
+
+    def __init_kb(self):
+        wiktionary_inventory_path = ""
+        with open(wiktionary_inventory_path) as f:
+            for line in f:
+                sense, lemma, pos, definition = line.strip().split("\t")
+                self.lemmapos2senses[(lemma, pos)].add(sense)
+                self.sense2definition[sense] = definition
 
     def init_dataset(self):
-        pass
+        self.data_store = []
+
+        for _, _, wsd_sentence in read_from_raganato(
+            *expand_raganato_path(self.dataset_path)
+        ):
+
+            sentence_tokens = [
+                wsd_instance.annotated_token.text for wsd_instance in wsd_sentence
+            ]
+
+            for i, wsd_instance in enumerate(wsd_sentence):
+
+                if wsd_instance.instance_id is None:
+                    continue
+
+                possible_senses = self.lemmapos2senses.get(
+                    (
+                        wsd_instance.annotated_token.lemma,
+                        pos_map.get(
+                            wsd_instance.annotated_token.pos,
+                            wsd_instance.annotated_token.pos,
+                        ),
+                    )
+                )
+
+                if len(possible_senses) == 0:
+                    print(
+                        f"No synsets found in WordNet for instance {wsd_instance.instance_id}. "
+                        f"Skipping this instance"
+                    )
+                    print(wsd_instance)
+                    continue
+
+                curr_sentence = self.tokenizer.insert_classify_tokens(
+                    sentence_tokens, index=i
+                )
+
+                possible_definitions = [
+                    self.sense2definition[ps]
+                    for ps in possible_senses
+                ]
+
+                (
+                    encoded_final_sequence,
+                    definitions_positions,
+                    token_type_ids,
+                ) = self.tokenizer.prepare_sample(curr_sentence, possible_definitions)
+
+                data_elem = DataElement(
+                    encoded_final_sequence=encoded_final_sequence,
+                    start_position=None,
+                    end_position=None,
+                    possible_offsets=possible_senses,
+                    gold_labels=None,
+                    gloss_positions=definitions_positions,
+                    token_type_ids=token_type_ids,
+                )
+
+                self.data_store.append(data_elem)
 
 
 class DatasetAlternator(IterableDataset):
