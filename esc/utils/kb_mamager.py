@@ -44,9 +44,21 @@ def build_wordnet_dict(output_dir_path: str) -> None:
             synset2sensekeys[synset_offset].append(lemma_key)
 
     write_dict_on_file(f"{output_dir_path}/synset2gloss.tsv", synset2gloss)
-    write_dict_on_file(f"{output_dir_path}/synset2examples.tsv", synset2examples, value_mapper=lambda v: "\t".join(v))
-    write_dict_on_file(f"{output_dir_path}/lemmapos2synsets.tsv", lemmapos2synsets, value_mapper=lambda v: "\t".join(v))
-    write_dict_on_file(f"{output_dir_path}/synset2sensekeys.tsv", synset2sensekeys, value_mapper=lambda v: "\t".join(v))
+    write_dict_on_file(
+        f"{output_dir_path}/synset2examples.tsv",
+        synset2examples,
+        value_mapper=lambda v: "\t".join(v),
+    )
+    write_dict_on_file(
+        f"{output_dir_path}/lemmapos2synsets.tsv",
+        lemmapos2synsets,
+        value_mapper=lambda v: "\t".join(v),
+    )
+    write_dict_on_file(
+        f"{output_dir_path}/synset2sensekeys.tsv",
+        synset2sensekeys,
+        value_mapper=lambda v: "\t".join(v),
+    )
 
 
 class KBManager:

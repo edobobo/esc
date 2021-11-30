@@ -53,19 +53,25 @@ def probabilistic_prediction(
     end_logits_lp = torch.log_softmax(end_logits, dim=0).squeeze()
 
     if probabilistic_type == "probabilistic":
-        glosses_probs = [start_logits_lp[si] + end_logits_lp[ei] for si, ei in glosses_indices]
+        glosses_probs = [
+            start_logits_lp[si] + end_logits_lp[ei] for si, ei in glosses_indices
+        ]
     elif probabilistic_type == "start":
         glosses_probs = [start_logits_lp[si] for si, _ in glosses_indices]
     elif probabilistic_type == "end":
         glosses_probs = [end_logits_lp[ei] for _, ei in glosses_indices]
     elif probabilistic_type == "max":
-        glosses_probs = [max(start_logits_lp[si], end_logits_lp[ei]) for si, ei in glosses_indices]
+        glosses_probs = [
+            max(start_logits_lp[si], end_logits_lp[ei]) for si, ei in glosses_indices
+        ]
     elif probabilistic_type == "split":
         glosses_start_probs = [start_logits_lp[si] for si, _ in glosses_indices]
         glosses_end_probs = [end_logits_lp[ei] for _, ei in glosses_indices]
         start_label_idx = np.argmax(glosses_start_probs).item()
         end_label_idx = np.argmax(glosses_end_probs).item()
-        return list({possible_offsets[start_label_idx], possible_offsets[end_label_idx]})
+        return list(
+            {possible_offsets[start_label_idx], possible_offsets[end_label_idx]}
+        )
     else:
         print(f"No matching prediction methods for {probabilistic_type}")
         raise NotImplementedError
@@ -75,7 +81,9 @@ def probabilistic_prediction(
     return [possible_offsets[label_idx]]
 
 
-def precision_recall_f1_accuracy_score(y_true: List[List[str]], y_pred: List[Optional[List[str]]]) -> ScoresReport:
+def precision_recall_f1_accuracy_score(
+    y_true: List[List[str]], y_pred: List[Optional[List[str]]]
+) -> ScoresReport:
 
     ok = notok = 0
 
@@ -109,7 +117,11 @@ def precision_recall_f1_accuracy_score(y_true: List[List[str]], y_pred: List[Opt
 
 
 def predict(
-    model: ESCModule, data_loader: DataLoader, device: int, prediction_type: str, evaluate: bool = False
+    model: ESCModule,
+    data_loader: DataLoader,
+    device: int,
+    prediction_type: str,
+    evaluate: bool = False,
 ) -> PredictionReport:
 
     instance_prediction_reports = []
@@ -121,8 +133,12 @@ def predict(
         for batch in data_loader:
 
             if device >= 0:
-                batch["sequences"] = model.transfer_batch_to_device(batch["sequences"], model.device)
-                batch["attention_masks"] = model.transfer_batch_to_device(batch["attention_masks"], model.device)
+                batch["sequences"] = model.transfer_batch_to_device(
+                    batch["sequences"], model.device
+                )
+                batch["attention_masks"] = model.transfer_batch_to_device(
+                    batch["attention_masks"], model.device
+                )
 
             predictions = model(batch["sequences"], batch["attention_masks"])
 
@@ -134,24 +150,39 @@ def predict(
                 start_logits_i = predictions["start_logits"][i]
                 end_logits_i = predictions["end_logits"][i]
 
-                if "xlnet" in model.hparams.transformer_model or model.hparams.squad_head:
+                if (
+                    "xlnet" in model.hparams.transformer_model
+                    or model.hparams.squad_head
+                ):
                     ei = ei[0]
                     end_logits_i = end_logits_i.T[0]
 
                 possible_offsets = batch["possible_offsets"][i]
                 glosses_indices = batch["gloss_positions"][i]
-                wsd_instance = None if "wsd_instances" not in batch else batch["wsd_instances"][i]
-
-                predicted_offsets = probabilistic_prediction(
-                    start_logits_i, end_logits_i, glosses_indices, possible_offsets, prediction_type
+                wsd_instance = (
+                    None if "wsd_instances" not in batch else batch["wsd_instances"][i]
                 )
 
-                predicted_offsets_indices = [glosses_indices[possible_offsets.index(po)] for po in predicted_offsets]
+                predicted_offsets = probabilistic_prediction(
+                    start_logits_i,
+                    end_logits_i,
+                    glosses_indices,
+                    possible_offsets,
+                    prediction_type,
+                )
+
+                predicted_offsets_indices = [
+                    glosses_indices[possible_offsets.index(po)]
+                    for po in predicted_offsets
+                ]
 
                 gold_labels, gold_labels_indices = None, None
                 if evaluate:
                     gold_labels = batch["gold_labels"][i]
-                    gold_labels_indices = [glosses_indices[possible_offsets.index(gl)] for gl in gold_labels]
+                    gold_labels_indices = [
+                        glosses_indices[possible_offsets.index(gl)]
+                        for gl in gold_labels
+                    ]
 
                 instance_prediction_report = InstancePredictionReport(
                     sequence=seq,
@@ -180,7 +211,10 @@ def predict(
     else:
         scores_report = None
 
-    return PredictionReport(instances_prediction_reports=instance_prediction_reports, scores_report=scores_report)
+    return PredictionReport(
+        instances_prediction_reports=instance_prediction_reports,
+        scores_report=scores_report,
+    )
 
 
 def process_prediction_result(
@@ -221,14 +255,17 @@ def process_prediction_result(
                         sense_key = pred_synset_lemmas[0].key()
                     else:
                         valid_lemmas = [
-                            l for l in pred_synset.lemmas() if l.name() == wsd_instance.annotated_token.lemma
+                            l
+                            for l in pred_synset.lemmas()
+                            if l.name() == wsd_instance.annotated_token.lemma
                         ]
 
                         if len(valid_lemmas) == 0:
                             valid_lemmas = [
                                 _l
                                 for _l in pred_synset.lemmas()
-                                if _l.name().lower() == wsd_instance.annotated_token.lemma
+                                if _l.name().lower()
+                                == wsd_instance.annotated_token.lemma
                             ]
 
                         if not len(valid_lemmas) == 1:
@@ -238,7 +275,9 @@ def process_prediction_result(
 
                     predicted_sense_keys.add(sense_key)
 
-                f.write(f'{wsd_instance.instance_id} {" ".join(predicted_sense_keys)}\n')
+                f.write(
+                    f'{wsd_instance.instance_id} {" ".join(predicted_sense_keys)}\n'
+                )
 
     if errors_output_path is not None:
 
@@ -246,15 +285,24 @@ def process_prediction_result(
 
             for instance_eval_report in prediction_report.instances_prediction_reports:
 
-                if instance_eval_report.gold_synsets == instance_eval_report.predicted_synsets:
+                if (
+                    instance_eval_report.gold_synsets
+                    == instance_eval_report.predicted_synsets
+                ):
                     continue
 
-                f.write("- Sequence: {}\n".format(tokenizer.decode(instance_eval_report.sequence)))
+                f.write(
+                    "- Sequence: {}\n".format(
+                        tokenizer.decode(instance_eval_report.sequence)
+                    )
+                )
                 f.write(
                     "- Gold: {}\n".format(
                         " | ".join(
                             [
-                                "({}, {})".format(gs, synset_from_offset(gs).definition())
+                                "({}, {})".format(
+                                    gs, synset_from_offset(gs).definition()
+                                )
                                 for gs in instance_eval_report.gold_synsets
                             ]
                         )
@@ -264,35 +312,63 @@ def process_prediction_result(
                     "- Prediction: {}\n".format(
                         " | ".join(
                             [
-                                "({}, {})".format(ps, synset_from_offset(ps).definition())
+                                "({}, {})".format(
+                                    ps, synset_from_offset(ps).definition()
+                                )
                                 for ps in instance_eval_report.predicted_synsets
                             ]
                         )
                     )
                 )
-                f.write("- Possible predictions: {}\n".format(", ".join(instance_eval_report.possible_synsets)))
+                f.write(
+                    "- Possible predictions: {}\n".format(
+                        ", ".join(instance_eval_report.possible_synsets)
+                    )
+                )
                 f.write(
                     "- Gold indices: {} | Predicted indices: {}\n".format(
-                        ", ".join([f"({si}, {ei})" for si, ei in instance_eval_report.gold_synsets_indices]),
-                        ", ".join([f"({si}, {ei})" for si, ei in instance_eval_report.predicted_synsets_indices]),
+                        ", ".join(
+                            [
+                                f"({si}, {ei})"
+                                for si, ei in instance_eval_report.gold_synsets_indices
+                            ]
+                        ),
+                        ", ".join(
+                            [
+                                f"({si}, {ei})"
+                                for si, ei in instance_eval_report.predicted_synsets_indices
+                            ]
+                        ),
                     )
                 )
                 f.write(
                     "- Most probable start index: {} | Most probable end index: {}\n".format(
-                        instance_eval_report.most_probable_start_index, instance_eval_report.most_probable_end_index
+                        instance_eval_report.most_probable_start_index,
+                        instance_eval_report.most_probable_end_index,
                     )
                 )
 
-                start_indices_probabilities = torch.softmax(instance_eval_report.predicted_start_indices_logits, dim=-1)
-                end_indices_probabilities = torch.softmax(instance_eval_report.predicted_end_indices_logits, dim=-1)
+                start_indices_probabilities = torch.softmax(
+                    instance_eval_report.predicted_start_indices_logits, dim=-1
+                )
+                end_indices_probabilities = torch.softmax(
+                    instance_eval_report.predicted_end_indices_logits, dim=-1
+                )
                 glosses_indices_probabilities = [
                     "[ {} : {:.2f}%, {} : {:.2f}%]".format(
-                        si, start_indices_probabilities[si] * 100, ei, end_indices_probabilities[ei] * 100
+                        si,
+                        start_indices_probabilities[si] * 100,
+                        ei,
+                        end_indices_probabilities[ei] * 100,
                     )
                     for si, ei in instance_eval_report.possible_synsets_indices
                 ]
 
-                f.write("- Glosses indices probabilities: {}\n".format(" | ".join(glosses_indices_probabilities)))
+                f.write(
+                    "- Glosses indices probabilities: {}\n".format(
+                        " | ".join(glosses_indices_probabilities)
+                    )
+                )
 
                 f.write("\n\n")
 
@@ -318,7 +394,9 @@ def main() -> None:
 
     args = parse_args()
 
-    known_raganato_paths = list_elems_in_dir("data/WSD_Evaluation_Framework/Evaluation_Datasets", only_dirs=True)
+    known_raganato_paths = list_elems_in_dir(
+        "data/WSD_Evaluation_Framework/Evaluation_Datasets", only_dirs=True
+    )
 
     if "all_datasets" in args.dataset_paths:
         dataset_paths = known_raganato_paths
@@ -332,14 +410,17 @@ def main() -> None:
         wsd_model.to(torch.device(args.device))
 
     tokenizer = get_tokenizer(
-        wsd_model.hparams.transformer_model, getattr(wsd_model.hparams, "use_special_tokens", False)
+        wsd_model.hparams.transformer_model,
+        getattr(wsd_model.hparams, "use_special_tokens", False),
     )
 
     for prediction_type in args.prediction_types:
 
         for dataset_path in dataset_paths:
 
-            dataset_path = dataset_path.replace(".data.xml", "").replace(".gold.key.txt", "")
+            dataset_path = dataset_path.replace(".data.xml", "").replace(
+                ".gold.key.txt", ""
+            )
 
             if dataset_path in known_raganato_paths:
                 dataset_path = f"data/WSD_Evaluation_Framework/Evaluation_Datasets/{dataset_path}/{dataset_path}"
@@ -347,11 +428,19 @@ def main() -> None:
             dataset_tic = time.time()
             if args.oxford_test:
                 dataset = OxfordDictionaryDataset(
-                    dataset_path, tokenizer, args.tokens_per_batch, re_init_on_iter=False, is_test=True
+                    dataset_path,
+                    tokenizer,
+                    args.tokens_per_batch,
+                    re_init_on_iter=False,
+                    is_test=True,
                 )
             else:
                 dataset = WordNetDataset(
-                    dataset_path, tokenizer, args.tokens_per_batch, re_init_on_iter=False, is_test=True
+                    dataset_path,
+                    tokenizer,
+                    args.tokens_per_batch,
+                    re_init_on_iter=False,
+                    is_test=True,
                 )
             dataset_toc = time.time()
 
@@ -370,9 +459,13 @@ def main() -> None:
             evaluation_toc = time.time()
 
             postprocessing_tic = time.time()
-            predictions_path = "predictions/{}_predictions.txt".format(ntpath.basename(dataset_path))
+            predictions_path = "predictions/{}_predictions.txt".format(
+                ntpath.basename(dataset_path)
+            )
             output_errors_path = (
-                "models_errors/{}_{}.txt".format(dataset_path.split("/")[-1], prediction_type)
+                "models_errors/{}_{}.txt".format(
+                    dataset_path.split("/")[-1], prediction_type
+                )
                 if args.output_errors
                 else None
             )
@@ -392,7 +485,9 @@ def main() -> None:
                 "- Prediction time: Dataset initialization took: {:.2f}s"
                 " | Prediction took: {:.2f}s"
                 " | Post processing took: {:.2f}s".format(
-                    dataset_toc - dataset_tic, evaluation_toc - evaluation_tic, postprocessing_toc - postprocessing_tic
+                    dataset_toc - dataset_tic,
+                    evaluation_toc - evaluation_tic,
+                    postprocessing_toc - postprocessing_tic,
                 )
             )
 

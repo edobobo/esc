@@ -25,7 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gpus", type=int, default=1)
     parser.add_argument("--train_path", action="append")
     parser.add_argument(
-        "--validation_path", default="data/WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007"
+        "--validation_path",
+        default="data/WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007",
     )
     parser.add_argument("--num_workers", default=1, type=int)
     parser.add_argument("--gradient_acc_steps", default=20, type=int)
@@ -36,7 +37,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning_rate", default=0.00001, type=float)
     parser.add_argument("--weight_decay", default=0.01, type=float)
     parser.add_argument("--dropout", default=0.1, type=float)
-    parser.add_argument("--no_decay_params", default=["bias", "LayerNorm.weight"], action="append")
+    parser.add_argument(
+        "--no_decay_params", default=["bias", "LayerNorm.weight"], action="append"
+    )
     parser.add_argument("--precision", default=16, type=int)
     parser.add_argument("--amp_level", default="O1", type=str)
     parser.add_argument("--validation_check_interval", default=2000, type=int)
@@ -104,7 +107,10 @@ def train(args: argparse.Namespace):
     if args.use_oxford:
         train_datasets.append(
             OxfordDictionaryDataset(
-                "data/preprocessed_data/train.processed.txt", tokenizer, args.tokens_per_batch, re_init_on_iter=True
+                "data/preprocessed_data/train.processed.txt",
+                tokenizer,
+                args.tokens_per_batch,
+                re_init_on_iter=True,
             )
         )
         validation_datasets.append(
@@ -123,9 +129,12 @@ def train(args: argparse.Namespace):
         else train_datasets[0]
     )
 
-    train_dataloader = DataLoader(train_dataset, batch_size=None, num_workers=args.num_workers)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=None, num_workers=args.num_workers
+    )
     validation_dataloader = [
-        DataLoader(vd, batch_size=None, num_workers=args.num_workers) for vd in validation_datasets
+        DataLoader(vd, batch_size=None, num_workers=args.num_workers)
+        for vd in validation_datasets
     ]
 
     # WANDB
@@ -136,7 +145,9 @@ def train(args: argparse.Namespace):
     # CALLBACKS
     early_stopping_cb = EarlyStopping(mode="max", patience=args.patience)
 
-    model_checkpoint = ModelCheckpoint(save_top_k=args.save_topk, verbose=True, mode="max", period=0)
+    model_checkpoint = ModelCheckpoint(
+        save_top_k=args.save_topk, verbose=True, mode="max", period=0
+    )
 
     # WSD MODULE
     module = get_module(args, tokenizer)
@@ -157,7 +168,9 @@ def train(args: argparse.Namespace):
     )
 
     # FIT
-    trainer.fit(module, train_dataloader=train_dataloader, val_dataloaders=validation_dataloader)
+    trainer.fit(
+        module, train_dataloader=train_dataloader, val_dataloaders=validation_dataloader
+    )
 
     # save tokenizer if needed
     if args.use_special_tokens:

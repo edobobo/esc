@@ -92,7 +92,9 @@ def read_from_raganato(
             last_seen_sentence_id = sentence_id
 
         annotated_token = AnnotatedToken(
-            text=element.text, pos=element.attrib.get("pos", None), lemma=element.attrib.get("lemma", None)
+            text=element.text,
+            pos=element.attrib.get("pos", None),
+            lemma=element.attrib.get("lemma", None),
         )
 
         wsd_instance = WSDInstance(
@@ -134,16 +136,25 @@ class RaganatoBuilder:
 
     def open_sentence_section(self, sentence_id: str):
         sentence_section = ET.SubElement(self.current_text_section, "sentence")
-        sentence_id = self.compute_id([self.current_text_section.attrib["id"], sentence_id])
+        sentence_id = self.compute_id(
+            [self.current_text_section.attrib["id"], sentence_id]
+        )
         sentence_section.set("id", sentence_id)
         self.current_sentence_section = sentence_section
 
     def add_annotated_token(
-        self, token: str, lemma: str, pos: str, instance_id: Optional[str] = None, sense: Optional[str] = None
+        self,
+        token: str,
+        lemma: str,
+        pos: str,
+        instance_id: Optional[str] = None,
+        sense: Optional[str] = None,
     ):
         if instance_id is not None and sense is not None:
             token_element = ET.SubElement(self.current_sentence_section, "instance")
-            token_id = self.compute_id([self.current_sentence_section.attrib["id"], instance_id])
+            token_id = self.compute_id(
+                [self.current_sentence_section.attrib["id"], instance_id]
+            )
             token_element.set("id", token_id)
             self.gold_senses.append((token_id, sense))
         else:

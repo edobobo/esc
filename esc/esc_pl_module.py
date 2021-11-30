@@ -24,7 +24,9 @@ class ESCModule(pl.LightningModule):
                     self.hparams.transformer_model, mem_len=1024
                 )
             else:
-                self.qa_model = AutoModelForQuestionAnswering.from_pretrained(self.hparams.transformer_model)
+                self.qa_model = AutoModelForQuestionAnswering.from_pretrained(
+                    self.hparams.transformer_model
+                )
         else:
             raise NotImplementedError
 
@@ -32,7 +34,13 @@ class ESCModule(pl.LightningModule):
             self.qa_model.resize_token_embeddings(self.hparams.vocab_size)
 
     def forward(
-        self, sequences, attention_masks, start_positions=None, end_positions=None, *args, **kwargs
+        self,
+        sequences,
+        attention_masks,
+        start_positions=None,
+        end_positions=None,
+        *args,
+        **kwargs,
     ) -> Dict[str, torch.Tensor]:
 
         with open("data/batches.txt", "a") as f:
@@ -52,7 +60,9 @@ class ESCModule(pl.LightningModule):
         if self.hparams.squad_head and self.hparams.use_pmask:
             gloss_positions = kwargs.get("gloss_positions")
             p_mask = torch.ones_like(attention_masks)
-            p_mask[:, 0] = 0  # so that the CLS can always be predicted for impossible predictions
+            p_mask[
+                :, 0
+            ] = 0  # so that the CLS can always be predicted for impossible predictions
             for i, sent_gloss_positions in enumerate(gloss_positions):
                 for sgp, egp in sent_gloss_positions:
                     p_mask[i][sgp] = 0
@@ -100,7 +110,9 @@ class ESCModule(pl.LightningModule):
 
         return result
 
-    def validation_epoch_end(self, all_outputs: Union[pl.EvalResult, List[pl.EvalResult]]) -> pl.EvalResult:
+    def validation_epoch_end(
+        self, all_outputs: Union[pl.EvalResult, List[pl.EvalResult]]
+    ) -> pl.EvalResult:
 
         if type(all_outputs) != list:
             all_outputs = [all_outputs]
@@ -109,38 +121,59 @@ class ESCModule(pl.LightningModule):
 
         for i, outputs in enumerate(all_outputs):
 
-            correct_start_predictions = torch.eq(outputs.start_predictions, outputs.start_positions)
-            correct_end_predictions = torch.eq(outputs.end_predictions, outputs.end_positions)
-            predictions_len = torch.tensor(correct_start_predictions.size(0), dtype=torch.float)
+            correct_start_predictions = torch.eq(
+                outputs.start_predictions, outputs.start_positions
+            )
+            correct_end_predictions = torch.eq(
+                outputs.end_predictions, outputs.end_positions
+            )
+            predictions_len = torch.tensor(
+                correct_start_predictions.size(0), dtype=torch.float
+            )
 
-            correct_predictions = torch.bitwise_and(correct_start_predictions, correct_end_predictions)
+            correct_predictions = torch.bitwise_and(
+                correct_start_predictions, correct_end_predictions
+            )
             correct_predictions = torch.sum(correct_predictions) / predictions_len
 
             in_bound_start_predictions = torch.bitwise_and(
-                outputs.start_predictions >= outputs.start_positions, outputs.start_predictions <= outputs.end_positions
+                outputs.start_predictions >= outputs.start_positions,
+                outputs.start_predictions <= outputs.end_positions,
             )
 
             in_bound_end_predictions = torch.bitwise_and(
-                outputs.end_predictions >= outputs.start_positions, outputs.end_predictions <= outputs.end_positions
+                outputs.end_predictions >= outputs.start_positions,
+                outputs.end_predictions <= outputs.end_positions,
             )
 
-            in_bound_predictions = torch.bitwise_and(in_bound_start_predictions, in_bound_end_predictions)
+            in_bound_predictions = torch.bitwise_and(
+                in_bound_start_predictions, in_bound_end_predictions
+            )
 
             prefix = "_".join(list(set(outputs.dataset_identifier)))
 
             final_output.log(
-                f"{prefix}_correct_start_predictions", torch.sum(correct_start_predictions) / predictions_len
+                f"{prefix}_correct_start_predictions",
+                torch.sum(correct_start_predictions) / predictions_len,
             )
-            final_output.log(f"{prefix}_correct_end_predictions", torch.sum(correct_end_predictions) / predictions_len)
+            final_output.log(
+                f"{prefix}_correct_end_predictions",
+                torch.sum(correct_end_predictions) / predictions_len,
+            )
             final_output.log(f"{prefix}_correct_predictions", correct_predictions)
 
             final_output.log(
-                f"{prefix}_in_bound_start_predictions", torch.sum(in_bound_start_predictions) / predictions_len
+                f"{prefix}_in_bound_start_predictions",
+                torch.sum(in_bound_start_predictions) / predictions_len,
             )
             final_output.log(
-                f"{prefix}_in_bound_end_predictions", torch.sum(in_bound_end_predictions) / predictions_len
+                f"{prefix}_in_bound_end_predictions",
+                torch.sum(in_bound_end_predictions) / predictions_len,
             )
-            final_output.log(f"{prefix}_in_bound_predictions", torch.sum(in_bound_predictions) / predictions_len)
+            final_output.log(
+                f"{prefix}_in_bound_predictions",
+                torch.sum(in_bound_predictions) / predictions_len,
+            )
 
             val_loss = torch.mean(outputs[f"{prefix}_val_loss"])
             final_output.log(f"{prefix}_val_loss", val_loss)
@@ -157,17 +190,27 @@ class ESCModule(pl.LightningModule):
 
         optimizer_grouped_parameters = [
             {
-                "params": [p for n, p in self.named_parameters() if not any(nd in n for nd in no_decay)],
+                "params": [
+                    p
+                    for n, p in self.named_parameters()
+                    if not any(nd in n for nd in no_decay)
+                ],
                 "weight_decay": self.hparams.weight_decay,
             },
             {
-                "params": [p for n, p in self.named_parameters() if any(nd in n for nd in no_decay)],
+                "params": [
+                    p
+                    for n, p in self.named_parameters()
+                    if any(nd in n for nd in no_decay)
+                ],
                 "weight_decay": 0.0,
             },
         ]
 
         if self.hparams.optimizer == "adam":
-            optimizer = torch.optim.AdamW(optimizer_grouped_parameters, self.hparams.learning_rate)
+            optimizer = torch.optim.AdamW(
+                optimizer_grouped_parameters, self.hparams.learning_rate
+            )
         elif self.hparams.optimizer == "lamb":
             optimizer = Lamb(optimizer_grouped_parameters, self.hparams.learning_rate)
         elif self.hparams.optimizer == "radam":

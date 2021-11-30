@@ -10,7 +10,11 @@ from torch.distributions import poisson
 
 from esc.utils.definitions_tokenizer import DefinitionsTokenizer
 from esc.utils.commons import flatten, chunks, batch_data
-from esc.utils.wordnet import wn_offsets_from_lemmapos, synset_from_offset, wn_offset_from_sense_key
+from esc.utils.wordnet import (
+    wn_offsets_from_lemmapos,
+    synset_from_offset,
+    wn_offset_from_sense_key,
+)
 from esc.utils.wsd import expand_raganato_path, read_from_raganato, pos_map, WSDInstance
 
 ROBERTA_TOKENIZER_MODELS = {"roberta", "bart", "longformer"}
@@ -32,7 +36,11 @@ class QAExtractiveDataset(IterableDataset, ABC):
     dataset_id: str
 
     def __init__(
-        self, tokenizer: DefinitionsTokenizer, tokens_per_batch: int, re_init_on_iter: bool, is_test: bool = False
+        self,
+        tokenizer: DefinitionsTokenizer,
+        tokens_per_batch: int,
+        re_init_on_iter: bool,
+        is_test: bool = False,
     ) -> None:
         self.tokenizer = tokenizer
         self.tokens_per_batch = tokens_per_batch
@@ -68,13 +76,18 @@ class QAExtractiveDataset(IterableDataset, ABC):
     def shuffle_dataset(self) -> None:
         if not self.is_test:
             self.data_store = sorted(
-                self.data_store, key=lambda x: x.encoded_final_sequence.size(0) + torch.randint(0, 10, (1,)) + 1
+                self.data_store,
+                key=lambda x: x.encoded_final_sequence.size(0)
+                + torch.randint(0, 10, (1,))
+                + 1,
             )
             self.data_store = list(chunks(self.data_store, 2048))
             random.shuffle(self.data_store)
             self.data_store = flatten(self.data_store)
         else:
-            self.data_store = sorted(self.data_store, key=lambda x: x.encoded_final_sequence.size(0))
+            self.data_store = sorted(
+                self.data_store, key=lambda x: x.encoded_final_sequence.size(0)
+            )
 
     def build_dataset(self):
         self.init_dataset()
@@ -83,8 +96,13 @@ class QAExtractiveDataset(IterableDataset, ABC):
         self.is_dataset_used = False
 
     def output_batch(self, current_batch: list) -> Dict[str, Any]:
-        batched_sequences = batch_data([be.encoded_final_sequence for be in current_batch], self.tokenizer.pad_token_id)
-        attention_masks = [torch.ones_like(be.encoded_final_sequence) for be in current_batch]
+        batched_sequences = batch_data(
+            [be.encoded_final_sequence for be in current_batch],
+            self.tokenizer.pad_token_id,
+        )
+        attention_masks = [
+            torch.ones_like(be.encoded_final_sequence) for be in current_batch
+        ]
         batched_attention_masks = batch_data(attention_masks, pad_token_id=0)
 
         batch_dict = {
@@ -96,16 +114,24 @@ class QAExtractiveDataset(IterableDataset, ABC):
         rep_elem = current_batch[0]
 
         if rep_elem.start_position is not None:
-            batch_dict["start_positions"] = torch.tensor([be.start_position for be in current_batch])
+            batch_dict["start_positions"] = torch.tensor(
+                [be.start_position for be in current_batch]
+            )
 
         if rep_elem.end_position is not None:
-            batch_dict["end_positions"] = torch.tensor([be.end_position for be in current_batch])
+            batch_dict["end_positions"] = torch.tensor(
+                [be.end_position for be in current_batch]
+            )
 
         if rep_elem.token_type_ids is not None:
-            batch_dict["token_type_ids"] = batch_data([be.token_type_ids for be in current_batch], pad_token_id=0)
+            batch_dict["token_type_ids"] = batch_data(
+                [be.token_type_ids for be in current_batch], pad_token_id=0
+            )
 
         if rep_elem.possible_offsets is not None:
-            batch_dict["possible_offsets"] = [be.possible_offsets for be in current_batch]
+            batch_dict["possible_offsets"] = [
+                be.possible_offsets for be in current_batch
+            ]
 
         if rep_elem.gold_labels is not None:
             batch_dict["gold_labels"] = [be.gold_labels for be in current_batch]
@@ -131,10 +157,13 @@ class QAExtractiveDataset(IterableDataset, ABC):
 
         for data_elem in self.data_store:
 
-            batch_max_len = max([be.encoded_final_sequence.size(0) for be in current_batch], default=0)
+            batch_max_len = max(
+                [be.encoded_final_sequence.size(0) for be in current_batch], default=0
+            )
 
             if (
-                max(data_elem.encoded_final_sequence.size(0), batch_max_len) * (len(current_batch) + 1)
+                max(data_elem.encoded_final_sequence.size(0), batch_max_len)
+                * (len(current_batch) + 1)
                 > self.tokens_per_batch
             ):
                 if len(current_batch) != 0:
@@ -183,7 +212,9 @@ class WordNetDataset(QAExtractiveDataset):
                 self.keys_paths.append(kp)
 
         self.add_glosses_noise = add_glosses_noise
-        self.offsets_frequencies = None  # only used if the parameter "add_glosses_noise" is > 0.0
+        self.offsets_frequencies = (
+            None  # only used if the parameter "add_glosses_noise" is > 0.0
+        )
         self.fix_glosses = fix_glosses
         self.kshot = kshot
         self.poisson = poisson.Poisson(poisson_lambda)
@@ -198,7 +229,9 @@ class WordNetDataset(QAExtractiveDataset):
                     if wsd_instance.labels is None:
                         continue
                     else:
-                        wn_offsets = [wn_offset_from_sense_key(_l) for _l in wsd_instance.labels]
+                        wn_offsets = [
+                            wn_offset_from_sense_key(_l) for _l in wsd_instance.labels
+                        ]
                         offsets_counter.update(wn_offsets)
 
         total_occurrences = sum(offsets_counter.values())
@@ -224,7 +257,9 @@ class WordNetDataset(QAExtractiveDataset):
             raganato_iterable = read_from_raganato(data_path, keys_path)
             for _, _, wsd_sentence in raganato_iterable:
 
-                sentence_tokens = [wsd_instance.annotated_token.text for wsd_instance in wsd_sentence]
+                sentence_tokens = [
+                    wsd_instance.annotated_token.text for wsd_instance in wsd_sentence
+                ]
 
                 for i, wsd_instance in enumerate(wsd_sentence):
 
@@ -233,12 +268,17 @@ class WordNetDataset(QAExtractiveDataset):
 
                     gold_labels, current_label = None, None
                     if wsd_instance.labels is not None:
-                        gold_labels = [wn_offset_from_sense_key(_l) for _l in wsd_instance.labels]
+                        gold_labels = [
+                            wn_offset_from_sense_key(_l) for _l in wsd_instance.labels
+                        ]
                         current_label = random.choice(gold_labels)
 
                     possible_offsets = wn_offsets_from_lemmapos(
                         wsd_instance.annotated_token.lemma,
-                        pos_map.get(wsd_instance.annotated_token.pos, wsd_instance.annotated_token.pos),
+                        pos_map.get(
+                            wsd_instance.annotated_token.pos,
+                            wsd_instance.annotated_token.pos,
+                        ),
                     )
 
                     if len(possible_offsets) == 0:
@@ -253,7 +293,12 @@ class WordNetDataset(QAExtractiveDataset):
 
                         # kshot
                         if self.kshot > 0:
-                            if any([senses_counter[sk] > self.kshot for sk in wsd_instance.labels]):
+                            if any(
+                                [
+                                    senses_counter[sk] > self.kshot
+                                    for sk in wsd_instance.labels
+                                ]
+                            ):
                                 continue
                             else:
                                 senses_counter.update(wsd_instance.labels)
@@ -263,13 +308,18 @@ class WordNetDataset(QAExtractiveDataset):
                             n_offsets_to_add = self.poisson.sample().item()
                             offsets, frequencies = self.offsets_frequencies
                             random_offsets = np.random.choice(
-                                offsets, size=int(n_offsets_to_add), replace=False, p=frequencies
+                                offsets,
+                                size=int(n_offsets_to_add),
+                                replace=False,
+                                p=frequencies,
                             )
                             possible_offsets += random_offsets.tolist()
 
                         # remove gold glosses for multilabel instances
                         possible_offsets = [
-                            po for po in possible_offsets if po == current_label or po not in gold_labels
+                            po
+                            for po in possible_offsets
+                            if po == current_label or po not in gold_labels
                         ]
 
                         # remove possible duplicates
@@ -278,14 +328,19 @@ class WordNetDataset(QAExtractiveDataset):
                         if not self.fix_glosses:
                             np.random.shuffle(possible_offsets)
 
-                    curr_sentence = self.tokenizer.insert_classify_tokens(sentence_tokens, index=i)
+                    curr_sentence = self.tokenizer.insert_classify_tokens(
+                        sentence_tokens, index=i
+                    )
                     possible_glosses = [
-                        synset_from_offset(po).definition().capitalize() + "." for po in possible_offsets
+                        synset_from_offset(po).definition().capitalize() + "."
+                        for po in possible_offsets
                     ]
 
-                    encoded_final_sequence, gloss_positions, token_type_ids = self.tokenizer.prepare_sample(
-                        curr_sentence, possible_glosses
-                    )
+                    (
+                        encoded_final_sequence,
+                        gloss_positions,
+                        token_type_ids,
+                    ) = self.tokenizer.prepare_sample(curr_sentence, possible_glosses)
 
                     start_position, end_position = None, None
                     if current_label is not None:
@@ -346,7 +401,9 @@ class OxfordDictionaryDataset(QAExtractiveDataset):
 
             for line in f:
 
-                defined_token, context_tagged_tokens, definition = line.strip().split("\t")
+                defined_token, context_tagged_tokens, definition = line.strip().split(
+                    "\t"
+                )
 
                 context_tagged_tokens = context_tagged_tokens.split(" ")
                 context_tokens = [ctt.split("#$#")[0] for ctt in context_tagged_tokens]
@@ -356,20 +413,36 @@ class OxfordDictionaryDataset(QAExtractiveDataset):
 
                 defined_token_index = context_tokens.index(defined_token)
 
-                defined_token_lemmapos = "#".join(reversed(context_tagged_tokens[defined_token_index].split("#$#")[1:]))
+                defined_token_lemmapos = "#".join(
+                    reversed(
+                        context_tagged_tokens[defined_token_index].split("#$#")[1:]
+                    )
+                )
 
                 nice_definition = definition.capitalize() + "."
                 self.dataset_sentences.append(
-                    (defined_token_index, defined_token_lemmapos, context_tokens, nice_definition)
+                    (
+                        defined_token_index,
+                        defined_token_lemmapos,
+                        context_tokens,
+                        nice_definition,
+                    )
                 )
 
     def init_dataset(self) -> None:
 
         self.data_store = []
 
-        for defined_token_index, defined_token_lemmapos, context_tokens, definition in self.dataset_sentences:
+        for (
+            defined_token_index,
+            defined_token_lemmapos,
+            context_tokens,
+            definition,
+        ) in self.dataset_sentences:
 
-            context_sentence = self.tokenizer.insert_classify_tokens(context_tokens, defined_token_index)
+            context_sentence = self.tokenizer.insert_classify_tokens(
+                context_tokens, defined_token_index
+            )
 
             possible_definitions = list(self.lemmapos2glosses[defined_token_lemmapos])
 
@@ -378,9 +451,11 @@ class OxfordDictionaryDataset(QAExtractiveDataset):
 
             label_idx = possible_definitions.index(definition)
 
-            encoded_final_sequence, definitions_positions, token_type_ids = self.tokenizer.prepare_sample(
-                context_sentence, possible_definitions
-            )
+            (
+                encoded_final_sequence,
+                definitions_positions,
+                token_type_ids,
+            ) = self.tokenizer.prepare_sample(context_sentence, possible_definitions)
 
             start_position, end_position = definitions_positions[label_idx]
 
@@ -397,6 +472,19 @@ class OxfordDictionaryDataset(QAExtractiveDataset):
             self.data_store.append(data_elem)
 
 
+class WiktionaryDataset(QAExtractiveDataset):
+    def __init__(
+        self,
+        tokenizer: DefinitionsTokenizer,
+        tokens_per_batch: int,
+        re_init_on_iter: bool,
+    ):
+        super().__init__(tokenizer, tokens_per_batch, re_init_on_iter)
+
+    def init_dataset(self):
+        pass
+
+
 class DatasetAlternator(IterableDataset):
     def __init__(self, datasets: List[IterableDataset], is_infinite: bool = False):
         self.datasets = {dataset.__class__.__name__: dataset for dataset in datasets}
@@ -405,7 +493,8 @@ class DatasetAlternator(IterableDataset):
     def __iter__(self):
 
         datasets_iterable = {
-            dataset.__class__.__name__: [dataset.__iter__(), False] for dataset in self.datasets.values()
+            dataset.__class__.__name__: [dataset.__iter__(), False]
+            for dataset in self.datasets.values()
         }
 
         while not all([x[1] for x in datasets_iterable.values()]):
@@ -420,7 +509,9 @@ class DatasetAlternator(IterableDataset):
                         if not self.is_infinite:
                             datasets_iterable[dataset_name][-1] = True
                         else:
-                            datasets_iterable[dataset_name][0] = self.datasets[dataset_name].__iter__()
+                            datasets_iterable[dataset_name][0] = self.datasets[
+                                dataset_name
+                            ].__iter__()
                     else:
                         yield next_batch
 
@@ -433,15 +524,22 @@ class SmartDatasetAlternator(IterableDataset):
         self.init_datasets_probabilities()
 
     def compute_datasets_len(self) -> Dict[str, int]:
-        return {dn: sum(1 for _ in diter.__iter__()) for dn, diter in self.datasets.items()}
+        return {
+            dn: sum(1 for _ in diter.__iter__()) for dn, diter in self.datasets.items()
+        }
 
     def init_datasets_probabilities(self):
         datasets_len = self.compute_datasets_len()
         total_len = sum(datasets_len.values())
-        self.datasets_probabilities = {dn: dn_len / total_len for dn, dn_len in datasets_len.items()}
+        self.datasets_probabilities = {
+            dn: dn_len / total_len for dn, dn_len in datasets_len.items()
+        }
 
     def __iter__(self):
-        datasets_iterable = {dataset.__class__.__name__: dataset.__iter__() for dataset in self.datasets.values()}
+        datasets_iterable = {
+            dataset.__class__.__name__: dataset.__iter__()
+            for dataset in self.datasets.values()
+        }
 
         datasets, probabilities = [], []
         for dataset, prob in self.datasets_probabilities.items():
@@ -453,14 +551,18 @@ class SmartDatasetAlternator(IterableDataset):
                 return None
 
             current_dataset = (
-                datasets[0] if len(datasets) == 0 else np.random.choice(datasets, 1, p=probabilities).item()
+                datasets[0]
+                if len(datasets) == 0
+                else np.random.choice(datasets, 1, p=probabilities).item()
             )
 
             dataset_batch = next(datasets_iterable[current_dataset], None)
 
             if dataset_batch is None:
                 if self.is_infinite:
-                    datasets_iterable[current_dataset][0] = self.datasets[current_dataset].__iter__()
+                    datasets_iterable[current_dataset][0] = self.datasets[
+                        current_dataset
+                    ].__iter__()
                 else:
                     current_dataset_idx = datasets.index(current_dataset)
                     del datasets[current_dataset_idx]

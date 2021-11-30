@@ -25,7 +25,9 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
-def list_elems_in_dir(dir_path: str, only_files: bool = False, only_dirs: bool = False) -> List[str]:
+def list_elems_in_dir(
+    dir_path: str, only_files: bool = False, only_dirs: bool = False
+) -> List[str]:
 
     elems_in_dir = [e for e in listdir(dir_path)]
 
@@ -43,4 +45,4 @@ def batch_data(sequences: List[torch.Tensor], pad_token_id: int) -> torch.Tensor
 
 
 def count_lines_in_file(path):
-    return int(subprocess.check_output(f"wc -l \"{path}\"", shell=True).split()[0])
+    return int(subprocess.check_output(f'wc -l "{path}"', shell=True).split()[0])
